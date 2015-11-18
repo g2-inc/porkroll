@@ -35,8 +35,8 @@ function get_topdir() {
 
 function extract_source() {
     (
-        cd ${TOPDIR}/src
-        tar -xf snort-${SNORTVER}.tar.gz
+        cd ${TOPDIR}/work
+        tar -xf ${TOPDIR}/src/snort-${SNORTVER}.tar.gz
     )
 }
 
