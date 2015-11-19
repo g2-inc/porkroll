@@ -57,6 +57,35 @@ function patch_source() {
     )
 }
 
+function find_subdirs_entry() {
+    (
+        cd ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples
+
+        grep -n SUBDIRS Makefile.am | awk -F ':' '{print $1;}'
+    )
+}
+
+function patch_dynamic_makefile() {
+    dir=${1}
+    lineno=$(find_subdirs_entry)
+
+    tmpfile=$(mktemp)
+
+    sed "${lineno}s/\$/ ${dir}/" ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/Makefile.am > ${tmpfile}
+    mv ${tmpfile} ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/Makefile.am
+}
+
+function create_rule_directories() {
+    for file in $(find ${TOPDIR}/rules -type f -name \*.rule); do
+        file=${file##*/}
+        file=${file%*.*}
+        echo ${file}
+
+        mkdir ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${file}
+        patch_dynamic_makefile ${file}
+    done
+}
+
 function main() {
     set -xe
 
@@ -68,6 +97,8 @@ function main() {
     clean_work
     extract_source
     patch_source
+    find_subdirs_entry
+    create_rule_directories
 }
 
 main ${0} $*
