@@ -11,10 +11,10 @@ Snort shared objects from them.
 Requirements
 ============
 
-* FreeBSD or HardenedBSD
-* gmake
+* If on a BSD: gmake
 * autoconf
 * automake
+* libtool
 * pcre
 * zsh
 * daq
