@@ -44,7 +44,9 @@ function main() {
 
 	clean_work
 	extract_source
-	patch_source
+	if [ -z "$(which pkg-config)" ]; then
+		patch_source
+	fi
 	find_subdirs_entry
 	create_rule_directories
 	run_autotools
