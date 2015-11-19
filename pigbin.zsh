@@ -86,6 +86,13 @@ function create_rule_directories() {
     done
 }
 
+function run_autotools() {
+    (
+        cd ${TOPDIR}/work/snort-${SNORTVER}
+        autoreconf -fi
+    )
+}
+
 function main() {
     set -xe
 
@@ -99,6 +106,7 @@ function main() {
     patch_source
     find_subdirs_entry
     create_rule_directories
+    run_autotools
 }
 
 main ${0} $*
