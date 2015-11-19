@@ -34,20 +34,20 @@ function get_topdir() {
 }
 
 function main() {
-    set -xe
+	set -xe
 
-    TOPDIR=$(get_topdir ${1})
-    cd ${TOPDIR}
+	TOPDIR=$(get_topdir ${1})
+	cd ${TOPDIR}
 
-    source ${TOPDIR}/configs/main.conf
-    source ${TOPDIR}/lib/util.zsh
+	source ${TOPDIR}/configs/main.conf
+	source ${TOPDIR}/lib/util.zsh
 
-    clean_work
-    extract_source
-    patch_source
-    find_subdirs_entry
-    create_rule_directories
-    run_autotools
+	clean_work
+	extract_source
+	patch_source
+	find_subdirs_entry
+	create_rule_directories
+	run_autotools
 }
 
 main ${0} $*
