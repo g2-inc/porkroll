@@ -1,0 +1,11 @@
+--- configure.in.orig	2015-11-19 10:11:58.433193009 -0500
++++ configure.in	2015-11-19 10:12:22.769022194 -0500
+@@ -1231,7 +1231,7 @@
+     AC_DEFINE([FEAT_OPEN_APPID],[1],[Build with application id support. (Experimental)])
+     CONFIGFLAGS="$CONFIGFLAGS -DFEAT_OPEN_APPID"
+ 
+-    PKG_CHECK_MODULES(luajit, luajit,LLUAJIT="yes",LLUAJIT="no")
++    LUAJIT="no"
+     if test "x$LLUAJIT" = "xyes"; then
+         CONFIGFLAGS="$CONFIGFLAGS -DHAVE_LIBLUAJIT"
+         LUA_CFLAGS="$luajit_CFLAGS"

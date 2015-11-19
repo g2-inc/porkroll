@@ -33,10 +33,27 @@ function get_topdir() {
     echo $(realpath $(dirname ${self}))
 }
 
+function clean_work() {
+    cd ${TOPDIR}/work
+    rm -rf snort-${SNORTVER}
+}
+
 function extract_source() {
     (
         cd ${TOPDIR}/work
         tar -xf ${TOPDIR}/src/snort-${SNORTVER}.tar.gz
+    )
+}
+
+function patch_source() {
+    (
+        patches=(001-configure.in)
+
+        cd ${TOPDIR}/work/snort-${SNORTVER}
+
+        for patch in ${patches}; do
+            patch -p0 < ${TOPDIR}/patches/${patch}
+        done
     )
 }
 
@@ -47,7 +64,10 @@ function main() {
     cd ${TOPDIR}
 
     source ${TOPDIR}/configs/main.conf
+
+    clean_work
     extract_source
+    patch_source
 }
 
 main ${0} $*
