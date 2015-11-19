@@ -1,5 +1,3 @@
-#!/usr/bin/env zsh
-
 # Copyright (c) 2015 G2, Inc
 # Author: Shawn Webb <shawn.webb@g2-inc.com>
 #
@@ -28,26 +26,62 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-function get_topdir() {
-    self=${1}
-    echo $(realpath $(dirname ${self}))
+function clean_work() {
+    cd ${TOPDIR}/work
+    rm -rf snort-${SNORTVER}
 }
 
-function main() {
-    set -xe
-
-    TOPDIR=$(get_topdir ${1})
-    cd ${TOPDIR}
-
-    source ${TOPDIR}/configs/main.conf
-    source ${TOPDIR}/lib/util.zsh
-
-    clean_work
-    extract_source
-    patch_source
-    find_subdirs_entry
-    create_rule_directories
-    run_autotools
+function extract_source() {
+    (
+        cd ${TOPDIR}/work
+        tar -xf ${TOPDIR}/src/snort-${SNORTVER}.tar.gz
+    )
 }
 
-main ${0} $*
+function patch_source() {
+    (
+        patches=(001-configure.in)
+
+        cd ${TOPDIR}/work/snort-${SNORTVER}
+
+        for patch in ${patches}; do
+            patch -p0 < ${TOPDIR}/patches/${patch}
+        done
+    )
+}
+
+function find_subdirs_entry() {
+    (
+        cd ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples
+
+        grep -n SUBDIRS Makefile.am | awk -F ':' '{print $1;}'
+    )
+}
+
+function patch_dynamic_makefile() {
+    dir=${1}
+    lineno=$(find_subdirs_entry)
+
+    tmpfile=$(mktemp)
+
+    sed "${lineno}s/\$/ ${dir}/" ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/Makefile.am > ${tmpfile}
+    mv ${tmpfile} ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/Makefile.am
+}
+
+function create_rule_directories() {
+    for file in $(find ${TOPDIR}/rules -type f -name \*.rule); do
+        file=${file##*/}
+        file=${file%*.*}
+        echo ${file}
+
+        mkdir ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${file}
+        patch_dynamic_makefile ${file}
+    done
+}
+
+function run_autotools() {
+    (
+        cd ${TOPDIR}/work/snort-${SNORTVER}
+        autoreconf -fi
+    )
+}
