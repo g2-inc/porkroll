@@ -28,7 +28,7 @@
 #include "detection_lib_meta.h"
 
 /* flow:established, from_server; */
-static FlowFlags sid~~SIDNUM~~low =
+static FlowFlags sid~~SIDNUM~~flow =
 {
     FLOW_ESTABLISHED|FLOW_TO_CLIENT
 };
@@ -60,7 +60,7 @@ static ContentInfo sid~~SIDNUM~~content =
     NULL  // depth_location
 };
 
-static RuleOption sid109option2 =
+static RuleOption sid~~SIDNUM~~option2 =
 {
     OPTION_TYPE_CONTENT,
     {

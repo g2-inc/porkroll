@@ -13,7 +13,7 @@ BUILT_SOURCES = \
 sfsnort_dynamic_detection_lib.c \
 sfsnort_dynamic_detection_lib.h
 
-nodist_lib_sfdynamic_example_rule_la_SOURCES = \
+nodist_lib_~~SIDNAME~~_la_SOURCES = \
 sfsnort_dynamic_detection_lib.c \
 sfsnort_dynamic_detection_lib.h \
 rules.c \

@@ -39,6 +39,8 @@
 #endif
 #include "sf_snort_plugin_api.h"
 
+extern Rule ~~SIDNAME~~;
+
 Rule *rules[] =
 {
     &~~SIDNAME~~,
