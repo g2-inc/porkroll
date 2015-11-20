@@ -41,6 +41,7 @@ function main() {
 
 	source ${TOPDIR}/configs/main.conf
 	source ${TOPDIR}/lib/util.zsh
+	source ${TOPDIR}/lib/template_management.zsh
 
 	clean_work
 	extract_source
@@ -51,6 +52,7 @@ function main() {
 	create_rule_directories
 	run_autotools
 	run_configure
+	run_build
 }
 
 main ${0} $*

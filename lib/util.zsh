@@ -91,8 +91,8 @@ function create_rule_directories() {
 		mkdir ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${file}
 		patch_dynamic_makefile ${file}
 
-		# TODO: Fill in with template Makefile.am
-		touch ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${file}/Makefile.am
+		copy_alert_template ${file}
+		perform_rule_substitutions ${file}
 	done
 }
 
@@ -107,5 +107,18 @@ function run_configure() {
 	(
 		cd ${TOPDIR}/work/snort-${SNORTVER}
 		./configure --enable-build-dynamic-examples
+	)
+}
+
+function run_build() {
+	(
+		local make="make"
+
+		if [ $(uname) = "FreeBSD" ]; then
+			make="gmake"
+		fi
+
+		cd ${TOPDIR}/work/snort-${SNORTVER}
+		${make}
 	)
 }
