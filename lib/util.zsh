@@ -58,6 +58,14 @@ function find_subdirs_entry() {
 	)
 }
 
+function find_ac_config_files_entry() {
+	(
+		cd ${TOPDIR}/work/snort-${SNORTVER}
+
+		grep -nF 'src/dynamic-examples/dynamic-rule/Makefile \' configure.in | awk -F ':' '{print $1;}'
+	)
+}
+
 function patch_dynamic_makefile() {
 	dir=${1}
 	lineno=$(find_subdirs_entry)
@@ -66,6 +74,12 @@ function patch_dynamic_makefile() {
 
 	sed "${lineno}s/\$/ ${dir}/" ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/Makefile.am > ${tmpfile}
 	mv ${tmpfile} ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/Makefile.am
+
+	lineno=$(find_ac_config_files_entry)
+	sed "${lineno} a\\
+src/dynamic-examples/${dir}/Makefile \\\\
+" ${TOPDIR}/work/snort-${SNORTVER}/configure.in > ${tmpfile}
+	mv ${tmpfile} ${TOPDIR}/work/snort-${SNORTVER}/configure.in
 }
 
 function create_rule_directories() {
@@ -76,6 +90,9 @@ function create_rule_directories() {
 
 		mkdir ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${file}
 		patch_dynamic_makefile ${file}
+
+		# TODO: Fill in with template Makefile.am
+		touch ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${file}/Makefile.am
 	done
 }
 
@@ -83,5 +100,12 @@ function run_autotools() {
 	(
 		cd ${TOPDIR}/work/snort-${SNORTVER}
 		autoreconf -fi
+	)
+}
+
+function run_configure() {
+	(
+		cd ${TOPDIR}/work/snort-${SNORTVER}
+		./configure --enable-build-dynamic-examples
 	)
 }

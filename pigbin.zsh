@@ -50,6 +50,7 @@ function main() {
 	find_subdirs_entry
 	create_rule_directories
 	run_autotools
+	run_configure
 }
 
 main ${0} $*
