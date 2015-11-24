@@ -45,7 +45,7 @@ function get_json_value() {
 function copy_alert_template() {
 	local sid=${1}
 
-	cp ${TOPDIR}/templates/alert/* $(wrkdir)/src/dynamic-examples/${sid}/
+	cp ${TOPDIR}/templates/${SNORTVER}/alert/* $(wrkdir)/src/dynamic-examples/${sid}/
 	mv $(wrkdir)/src/dynamic-examples/${sid}/sid.c \
 		$(wrkdir)/src/dynamic-examples/${sid}/${sid}.c
 }
