@@ -45,9 +45,9 @@ function get_json_value() {
 function copy_alert_template() {
 	local sid=${1}
 
-	cp ${TOPDIR}/templates/alert/* ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${sid}/
-	mv ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${sid}/sid.c \
-		${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${sid}/${sid}.c
+	cp ${TOPDIR}/templates/alert/* $(wrkdir)/src/dynamic-examples/${sid}/
+	mv $(wrkdir)/src/dynamic-examples/${sid}/sid.c \
+		$(wrkdir)/src/dynamic-examples/${sid}/${sid}.c
 }
 
 function get_direction() {
@@ -108,7 +108,7 @@ function perform_rule_substitutions() {
 
 	local tmpfile=$(mktemp)
 
-	for file in $(find ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${sidname}); do
+	for file in $(find $(wrkdir)/src/dynamic-examples/${sidname}); do
 		sed \
 			-e "s/~~SIDNAME~~/${sidname}/g" \
 			-e "s/~~SIDNUM~~/${sid}/g" \

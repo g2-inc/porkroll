@@ -32,17 +32,21 @@ function clean_work() {
 }
 
 function extract_source() {
-(
-	cd ${TOPDIR}/work
-	tar -xf ${TOPDIR}/src/snort-${SNORTVER}.tar.gz
-)
+	(
+		cd ${TOPDIR}/work
+		tar -xf ${TOPDIR}/src/snort-${SNORTVER}.tar.gz
+	)
+}
+
+function wrkdir() {
+	echo ${TOPDIR}/work/snort-${SNORTVER}
 }
 
 function patch_source() {
 	(
 		patches=(001-configure.in)
 
-		cd ${TOPDIR}/work/snort-${SNORTVER}
+		cd $(wrkdir)
 
 		for patch in ${patches}; do
 			patch -p0 < ${TOPDIR}/patches/${patch}
@@ -52,7 +56,7 @@ function patch_source() {
 
 function find_subdirs_entry() {
 	(
-		cd ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples
+		cd $(wrkdir)/src/dynamic-examples
 
 		grep -n SUBDIRS Makefile.am | awk -F ':' '{print $1;}'
 	)
@@ -60,7 +64,7 @@ function find_subdirs_entry() {
 
 function find_ac_config_files_entry() {
 	(
-		cd ${TOPDIR}/work/snort-${SNORTVER}
+		cd $(wrkdir)
 
 		grep -nF 'src/dynamic-examples/dynamic-rule/Makefile \' configure.in | awk -F ':' '{print $1;}'
 	)
@@ -72,14 +76,14 @@ function patch_dynamic_makefile() {
 
 	tmpfile=$(mktemp)
 
-	sed "${lineno}s/\$/ ${dir}/" ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/Makefile.am > ${tmpfile}
-	mv ${tmpfile} ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/Makefile.am
+	sed "${lineno}s/\$/ ${dir}/" $(wrkdir)/src/dynamic-examples/Makefile.am > ${tmpfile}
+	mv ${tmpfile} $(wrkdir)/src/dynamic-examples/Makefile.am
 
 	lineno=$(find_ac_config_files_entry)
 	sed "${lineno} a\\
 src/dynamic-examples/${dir}/Makefile \\\\
-" ${TOPDIR}/work/snort-${SNORTVER}/configure.in > ${tmpfile}
-	mv ${tmpfile} ${TOPDIR}/work/snort-${SNORTVER}/configure.in
+" $(wrkdir)/configure.in > ${tmpfile}
+	mv ${tmpfile} $(wrkdir)/configure.in
 }
 
 function create_rule_directories() {
@@ -88,7 +92,7 @@ function create_rule_directories() {
 		file=${file%*.*}
 		echo ${file}
 
-		mkdir ${TOPDIR}/work/snort-${SNORTVER}/src/dynamic-examples/${file}
+		mkdir $(wrkdir)/src/dynamic-examples/${file}
 		patch_dynamic_makefile ${file}
 
 		copy_alert_template ${file}
@@ -98,14 +102,14 @@ function create_rule_directories() {
 
 function run_autotools() {
 	(
-		cd ${TOPDIR}/work/snort-${SNORTVER}
+	cd $(wrkdir)
 		autoreconf -fi
 	)
 }
 
 function run_configure() {
 	(
-		cd ${TOPDIR}/work/snort-${SNORTVER}
+	cd $(wrkdir)
 		./configure --enable-build-dynamic-examples
 	)
 }
@@ -118,7 +122,7 @@ function run_build() {
 			make="gmake"
 		fi
 
-		cd ${TOPDIR}/work/snort-${SNORTVER}
+		cd $(wrkdir)
 		${make}
 	)
 }
