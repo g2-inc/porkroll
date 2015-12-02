@@ -86,12 +86,27 @@ src/dynamic-examples/${dir}/Makefile \\\\
 	mv ${tmpfile} $(wrkdir)/configure.in
 }
 
-function create_rule_directories() {
-	for file in $(find ${STAGEDIR} -type f -name \*.rule); do
-		file=${file##*/}
-		file=$(echo "sid${file%%.*}" | sed 's,-,r,g')
-		echo ${file}
+function sanitize_rule_filename() {
+	file=${1}
 
+	file=${file##*/}
+	echo "sid${file%%.*}" | sed 's,-,r,g'
+}
+
+function get_raw_rule_names() {
+	for file in $(find ${STAGEDIR} -type f -name \*.rule); do
+		echo ${file##*/}
+	done
+}
+
+function get_sanitized_rule_names() {
+	for file in $(get_raw_rule_names); do
+		sanitize_rule_filename ${file}
+	done
+}
+
+function create_rule_directories() {
+	for file in $(get_sanitized_rule_names); do
 		mkdir $(wrkdir)/src/dynamic-examples/${file}
 		patch_dynamic_makefile ${file}
 	done
