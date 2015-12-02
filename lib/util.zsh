@@ -87,16 +87,13 @@ src/dynamic-examples/${dir}/Makefile \\\\
 }
 
 function create_rule_directories() {
-	for file in $(find ${TOPDIR}/rules -type f -name \*.rule); do
+	for file in $(find ${STAGEDIR} -type f -name \*.rule); do
 		file=${file##*/}
-		file=${file%*.*}
+		file=$(echo "sid${file%%.*}" | sed 's,-,r,g')
 		echo ${file}
 
 		mkdir $(wrkdir)/src/dynamic-examples/${file}
 		patch_dynamic_makefile ${file}
-
-		copy_alert_template ${file}
-		perform_rule_substitutions ${file}
 	done
 }
 

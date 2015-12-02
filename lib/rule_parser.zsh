@@ -1,5 +1,3 @@
-#!/usr/bin/env zsh
-
 # Copyright (c) 2015 G2, Inc
 # Author: Shawn Webb <shawn.webb@g2-inc.com>
 #
@@ -28,52 +26,6 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-function get_topdir() {
-    self=${1}
-    echo $(realpath $(dirname ${self}))
+function parse_rules() {
+	return 0
 }
-
-function sanity_check() {
-	if [ -z "${STAGEDIR}" ]; then
-		echo "[-] Please define STAGEDIR." >&2
-		exit 1
-	fi
-
-	if [ ! -d ${STAGEDIR} ]; then
-		mkdir -p ${STAGEDIR}
-		if [ ! ${?} -eq 0 ]; then
-			echo "[-] ${STAGEDIR} does not exist. Please create." >&2
-			exit 1
-		fi
-	fi
-}
-
-function main() {
-	set -xe
-
-	TOPDIR=$(get_topdir ${1})
-	cd ${TOPDIR}
-
-	source ${TOPDIR}/configs/main.conf
-	source ${TOPDIR}/lib/util.zsh
-	source ${TOPDIR}/lib/rule_parser.zsh
-
-	sanity_check
-	clean_work
-	extract_source
-	if [ -z "$(which pkg-config)" ]; then
-		patch_source
-	fi
-	create_rule_directories
-	parse_rules
-	res=${?}
-	if [ ! ${res} -eq 0 ]; then
-		echo "[-] Could not parse rules. Bailing." >&2
-		exit 1
-	fi
-	#run_autotools
-	#run_configure
-	#run_build
-}
-
-main ${0} $*
