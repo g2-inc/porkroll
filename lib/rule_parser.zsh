@@ -63,14 +63,76 @@ function create_rule_file() {
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+
+#include "sf_snort_plugin_api.h"
+#include "sf_snort_packet.h"
+
+int sid${rule}_run(void *);
+
 EOF
+}
+
+function parse_flow() {
+	local name=${1}
+	local flows=${2}
+	local flowvals=""
+	local flag=""
+
+	flows=$(echo ${flows} | sed 's/,/ /g')
+	echo ${flow}
+
+	for flow in $(echo ${flows}); do
+		case ${flow} in
+			to_server)
+				flowvals="${flowvals}${flag}FLOW_TO_SERVER"
+				;;
+			established)
+				flowvals="${flowvals}${flag}FLOW_ESTABLISHED"
+				;;
+			*)
+				echo "[-] Unknown flow: ${flow}" >&2
+				return 1
+				;;
+		esac
+		flag="|"
+	done
+
+	cat <<EOF >> $(rulepath ${name})/rule.c
+static FlowFlags sid_${name}_flow = {
+	${flowvals}
+};
+
+static RuleOption sid_${name}_flow_opt = {
+	OPTION_TYPE_FLOWFLAGS,
+	{ &sid_${name}_flow }
+};
+EOF
+
+	return 0
 }
 
 function parse_rule() {
 	local rule=${1}
 	local name=$(sanitize_rule_filename ${rule})
+	local stagefile="${STAGEDIR}/${rule}"
+	local npayload=0
+	local options=()
 
 	create_rule_file ${name}
+
+	local flow=$(jq -r '.nonpayload.flow' ${STAGEDIR}/${rule})
+	if [ ${#flow} -gt 0 ]; then
+		parse_flow ${name} ${flow}
+		res=${?}
+		if [ ${res} -gt 0 ]; then
+			echo "[-] Could not parse the flow for rule ${name}"
+			return ${res}
+		fi
+
+		options+="sid_${name}_flow_opt"
+	fi
+
+	return 0
 }
 
 function parse_rules() {
