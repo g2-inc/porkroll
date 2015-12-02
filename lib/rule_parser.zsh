@@ -26,6 +26,10 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+set -a ruleoptions
+set -a payloadnames
+set -a refs
+
 function rulepath() {
 	local rule=${1}
 	echo "$(wrkdir)/src/dynamic-examples/${rule}"
@@ -106,7 +110,81 @@ static RuleOption sid_${name}_flow_opt = {
 	OPTION_TYPE_FLOWFLAGS,
 	{ &sid_${name}_flow }
 };
+
 EOF
+
+	ruleoptions+="sid_${name}_flow_opt"
+
+	return 0
+}
+
+function parse_payload() {
+	local rule=${1}
+	local id=${2}
+	local name=$(sanitize_rule_filename ${rule})
+	local res=0
+	local ispcre=0
+	local depth=0
+	local offset=0
+	local flags=""
+	local flag=""
+	local fl=""
+
+	local payload=$(jq -r ".payload[${id}].content" ${STAGEDIR}/${rule})
+	if [ -z "${payload}" ]; then
+		# TODO: Implement PCRE and other payload types
+		return 0
+	fi
+
+	flag=$(jq -r ".payload[${id}].http_uri" ${STAGEDIR}/${rule})
+	if [ "${flag}" = "http_uri" ]; then
+		flags="CONTENT_BUF_URI"
+		fl="|"
+	fi
+
+	flag=$(jq -r ".payload[${id}].fast_pattern" ${STAGEDIR}/${rule})
+	if [ "${flag}" = "only" ]; then
+		flags="${flags}${fl}CONTENT_FAST_PATTERN"
+	fi
+
+	cat <<EOF >> $(rulepath ${name})/rule.c
+static ContentInfo sid_${name}_content${id} = {
+	(u_int8_t *)${payload},
+	${depth},
+	${offset},
+	${flags},
+	NULL,
+	NULL,
+	0,
+	0
+};
+
+static RuleOption sid_${name}_content_option${id} = {
+	OPTION_TYPE_CONTENT,
+	{ &sid_${name}_content${id} }
+};
+
+EOF
+
+	ruleoptions+="sid_${name}_content_option${id}"
+
+	return 0
+}
+
+function parse_payloads() {
+	local rule=${1}
+	local name=$(sanitize_rule_filename ${rule})
+	local npayloads=$(jq -r '.payload | length' ${STAGEDIR}/${rule})
+	local i=0
+	local res=0
+
+	for ((i=0; i < npayloads; i++)); do
+		parse_payload ${rule} ${i}
+		res=${?}
+		if [ ${res} -gt 0 ]; then
+			return ${res}
+		fi
+	done
 
 	return 0
 }
@@ -116,7 +194,8 @@ function parse_rule() {
 	local name=$(sanitize_rule_filename ${rule})
 	local stagefile="${STAGEDIR}/${rule}"
 	local npayload=0
-	local options=()
+	local res=0
+	local o=""
 
 	create_rule_file ${name}
 
@@ -128,9 +207,17 @@ function parse_rule() {
 			echo "[-] Could not parse the flow for rule ${name}"
 			return ${res}
 		fi
-
-		options+="sid_${name}_flow_opt"
 	fi
+
+	parse_payloads ${rule}
+	cat <<EOF >> $(rulepath ${name})/rule.c
+RuleOption *sid_${name}_options[] = {
+EOF
+	for o in ${ruleoptions}; do
+		echo "\t&${o}," >> $(rulepath ${name})/rule.c
+	done
+
+	echo "\tNULL\n};" >> $(rulepath ${name})/rule.c
 
 	return 0
 }
@@ -139,6 +226,9 @@ function parse_rules() {
 	local rule=""
 
 	for rule in $(get_raw_rule_names); do
+		ruleoptions=()
+		payloadnames=()
+		refs=()
 		parse_rule ${rule}
 		res=${?}
 		if [ ! ${res} -eq 0 ]; then
