@@ -189,6 +189,51 @@ function parse_payloads() {
 	return 0
 }
 
+function parse_ref() {
+	local rule=${1}
+	local id=${2}
+	local name=$(sanitize_rule_filename ${rule})
+	local refstr=$(jq -r ".general.reference[${id}]" ${STAGEDIR}/${rule})
+	local i=0
+
+	cat <<EOF >> $(rulepath ${name})/rule.c
+static RuleReference sid_${name}_ref${id} = {
+	"${refstr%%,*}",
+	"${refstr##*,}"
+};
+EOF
+
+	return 0
+}
+
+function parse_refs() {
+	local rule=${1}
+	local name=$(sanitize_rule_filename ${rule})
+	local nrefs=$(jq -r '.general.reference | length' ${STAGEDIR}/${rule})
+	local i=0
+	local res=0
+
+	for ((i=0; i < nrefs; i++)); do
+		parse_ref ${rule} ${i}
+		res=${?}
+		if [ ${res} -gt 0 ]; then
+			return ${res}
+		fi
+	done
+
+	cat <<EOF >> $(rulepath ${name})/rule.c
+static RuleReference *sid_${name}_refs[] = {
+EOF
+
+	for ((i=0; i < nrefs; i++)); do
+		echo "\t&sid_${name}_ref${i}," >> $(rulepath ${name})/rule.c
+	done
+
+	echo "\tNULL\n};\n" >> $(rulepath ${name})/rule.c
+
+	return 0
+}
+
 function parse_rule() {
 	local rule=${1}
 	local name=$(sanitize_rule_filename ${rule})
@@ -210,6 +255,7 @@ function parse_rule() {
 	fi
 
 	parse_payloads ${rule}
+	parse_refs ${rule}
 	cat <<EOF >> $(rulepath ${name})/rule.c
 RuleOption *sid_${name}_options[] = {
 EOF
