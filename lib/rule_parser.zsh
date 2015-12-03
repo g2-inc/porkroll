@@ -29,6 +29,7 @@
 set -a ruleoptions
 set -a payloadnames
 set -a refs
+metadata=""
 
 function rulepath() {
 	local rule=${1}
@@ -201,6 +202,7 @@ static RuleReference sid_${name}_ref${id} = {
 	"${refstr%%,*}",
 	"${refstr##*,}"
 };
+
 EOF
 
 	return 0
@@ -234,15 +236,47 @@ EOF
 	return 0
 }
 
-function parse_rule() {
+function parse_metadata() {
 	local rule=${1}
 	local name=$(sanitize_rule_filename ${rule})
-	local stagefile="${STAGEDIR}/${rule}"
-	local npayload=0
-	local res=0
-	local o=""
+	local metadatastr=$(jq -r '.general.metadata' ${STAGEDIR}/${rule})
+	local ndata=0
+	local i=0
 
-	create_rule_file ${name}
+	if [ "$(jq -r '.general.metadata | length' ${STAGEDIR}/${rule})" = "0" ]; then
+		return 0
+	fi
+
+	old_IFS=${IFS}
+	IFS=","
+	for data in $(echo ${metadatastr}); do
+		cat <<EOF >> $(rulepath ${name})/rule.c
+static RuleMetadata sid_${name}_metadata${ndata} = {
+	"$(echo ${data} | sed -E 's/^ {1,}//' | sed -E 's/ ${1,}$//')"
+}
+
+EOF
+		ndata=$((${ndata} + 1))
+	done
+	IFS=${old_IFS}
+
+	echo "static RuleMetadata *sid_${name}_metadata[] = {" >> $(rulepath ${name})/rule.c
+
+	for ((i=0; i < ndata; i++)); do
+		echo "\t&sid_${name}_metadata${i}," >> $(rulepath ${name})/rule.c
+	done
+
+	echo "\tNULL,\n};\n" >> $(rulepath ${name})/rule.c
+
+	metadata="sid_${name}_metadata"
+
+	return 0
+}
+
+function parse_flows() {
+	local rule=${1}
+	local name=$(sanitize_rule_filename ${rule})
+	local res=0
 
 	local flow=$(jq -r '.nonpayload.flow' ${STAGEDIR}/${rule})
 	if [ ${#flow} -gt 0 ]; then
@@ -254,8 +288,14 @@ function parse_rule() {
 		fi
 	fi
 
-	parse_payloads ${rule}
-	parse_refs ${rule}
+	return 0
+}
+
+function write_rule_options() {
+	local rule=${1}
+	local name=$(sanitize_rule_filename ${rule})
+	local o=""
+
 	cat <<EOF >> $(rulepath ${name})/rule.c
 RuleOption *sid_${name}_options[] = {
 EOF
@@ -264,6 +304,19 @@ EOF
 	done
 
 	echo "\tNULL\n};" >> $(rulepath ${name})/rule.c
+}
+
+function parse_rule() {
+	local rule=${1}
+	local name=$(sanitize_rule_filename ${rule})
+
+	create_rule_file ${name}
+
+	parse_flows ${rule}
+	parse_payloads ${rule}
+	parse_refs ${rule}
+	parse_metadata ${rule}
+	write_rule_options ${rule}
 
 	return 0
 }
@@ -276,6 +329,7 @@ function parse_rules() {
 		payloadnames=()
 		refs=()
 		parse_rule ${rule}
+		metadata="NULL"
 		res=${?}
 		if [ ! ${res} -eq 0 ]; then
 			return ${res}
