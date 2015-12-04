@@ -71,9 +71,19 @@ function main() {
 		echo "[-] Could not parse rules. Bailing." >&2
 		exit 1
 	fi
-	#run_autotools
-	#run_configure
-	#run_build
+	run_autotools
+	res=${?}
+	if [ ! ${res} -eq 0 ]; then
+		echo "[-] Could not run autotools" >&2
+		exit 1
+	fi
+	run_configure
+	res=${?}
+	if [ ! ${res} -eq 0 ]; then
+		echo "[-] Could not run configure" >&2
+		exit 1
+	fi
+	run_build
 }
 
 main ${0} $*

@@ -148,6 +148,10 @@ function parse_payload() {
 		flags="${flags}${fl}CONTENT_FAST_PATTERN"
 	fi
 
+	if [ -z "${flags}" ]; then
+		flags="0"
+	fi
+
 	cat <<EOF >> $(rulepath ${name})/rule.c
 static ContentInfo sid_${name}_content${id} = {
 	(u_int8_t *)${payload},
@@ -251,16 +255,16 @@ function parse_metadata() {
 	IFS=","
 	for data in $(echo ${metadatastr}); do
 		cat <<EOF >> $(rulepath ${name})/rule.c
-static RuleMetadata sid_${name}_metadata${ndata} = {
+static RuleMetaData sid_${name}_metadata${ndata} = {
 	"$(echo ${data} | sed -E 's/^ {1,}//' | sed -E 's/ ${1,}$//')"
-}
+};
 
 EOF
 		ndata=$((${ndata} + 1))
 	done
 	IFS=${old_IFS}
 
-	echo "static RuleMetadata *sid_${name}_metadata[] = {" >> $(rulepath ${name})/rule.c
+	echo "static RuleMetaData *sid_${name}_metadata[] = {" >> $(rulepath ${name})/rule.c
 
 	for ((i=0; i < ndata; i++)); do
 		echo "\t&sid_${name}_metadata${i}," >> $(rulepath ${name})/rule.c
@@ -303,7 +307,129 @@ EOF
 		echo "\t&${o}," >> $(rulepath ${name})/rule.c
 	done
 
-	echo "\tNULL\n};" >> $(rulepath ${name})/rule.c
+	echo "\tNULL\n};\n" >> $(rulepath ${name})/rule.c
+}
+
+function write_rule() {
+	local rule=${1}
+	local name=$(sanitize_rule_filename ${rule})
+	local direction=$(jq -r '.header.direction' ${STAGEDIR}/${rule})
+	local proto=$(jq -r '.header.protocol' ${STAGEDIR}/${rule})
+	local srcaddr=$(jq -r '.header.srcaddresses' ${STAGEDIR}/${rule})
+	local srcports=$(jq -r '.header.srcports' ${STAGEDIR}/${rule})
+	local dstaddr=$(jq -r '.header.dstaddresses' ${STAGEDIR}/${rule})
+	local dstports=$(jq -r '.header.dstports' ${STAGEDIR}/${rule})
+	local sid=$(jq -r '.general.sid' ${STAGEDIR}/${rule})
+	local rev=$(jq -r '.general.rev' ${STAGEDIR}/${rule})
+	local classtype=$(jq -r '.general.classtype' ${STAGEDIR}/${rule})
+	local msg=$(jq -r '.general.msg' ${STAGEDIR}/${rule})
+
+	case ${proto} in
+		tcp)
+			proto="IPPROTO_TCP"
+			;;
+		udp)
+			proto="IPPROTO_UDP"
+			;;
+		*)
+			echo "[-] Rule ${name}: Unknown protocol: ${proto}" >&2
+			return 1
+			;;
+	esac
+
+	if [ ${direction} = "->" ]; then
+		direction="0"
+	else
+		direction="1"
+	fi
+
+	cat <<EOF >> $(rulepath ${name})/rule.c
+Rule sid_${name}_rule = {
+	{
+		${proto},
+		"${srcaddr}",
+		"${srcports}",
+		${direction},
+		"${dstaddr}",
+		"${dstports}"
+	},
+	{
+		0,
+		${sid},
+		${rev},
+		"${classtype}",
+		0,
+		${msg},
+		sid_${name}_refs,
+		${metadata}
+	},
+	sid_${name}_options,
+	NULL,
+	0
+};
+
+Rule *rules[] = {
+	&sid_${name}_rule,
+	NULL
+};
+
+EOF
+	return 0
+}
+
+function write_makefile() {
+	local rule=${1}
+	local name=$(sanitize_rule_filename ${rule})
+
+	cat <<EOF >> $(rulepath ${name})/Makefile.am
+AUTOMAKE_OPTIONS=foreign no-dependencies
+
+INCLUDES = -I../include
+
+noinst_libdir = \${exec_prefix}/lib/snort_dynamicrules
+
+noinst_lib_LTLIBRARIES = lib_${name}.la
+
+lib_${name}_la_LDFLAGS = -export-dynamic @XCCFLAGS@
+
+BUILT_SOURCES = \\
+	sfsnort_dynamic_detection_lib.c \\
+	sfsnort_dynamic_detection_lib.h
+
+nodist_lib_${name}_la_SOURCES = \\
+	detection_lib_meta.h \\
+	rule.c \\
+	sfsnort_dynamic_detection_lib.c \\
+	sfsnort_dynamic_detection_lib.h
+
+EXTRA_DIST = \\
+	detection_lib_meta.h \\
+	rule.c
+
+sfsnort_dynamic_detection_lib.c: ../include/sfsnort_dynamic_detection_lib.c
+	cp \$? \$@
+
+sfsnort_dynamic_detection_lib.h: ../include/sfsnort_dynamic_detection_lib.h
+	cp \$? \$@
+
+clean-local:
+	rm -rf \$(BUILT_SOURCES)
+EOF
+
+	cat <<EOF >> $(rulepath ${name})/detection_lib_meta.h
+#ifndef _DETECTION_LIB_META_H_
+#define _DETECTION_LIB_META_H_
+
+/* Version for this rule library */
+#define DETECTION_LIB_MAJOR 1
+#define DETECTION_LIB_MINOR 0
+#define DETECTION_LIB_BUILD 0
+#define DETECTION_LIB_NAME "${name}"
+
+#endif /* _DETECTION_LIB_META_H_ */
+EOF
+
+	return 0
 }
 
 function parse_rule() {
@@ -317,6 +443,8 @@ function parse_rule() {
 	parse_refs ${rule}
 	parse_metadata ${rule}
 	write_rule_options ${rule}
+	write_rule ${rule}
+	write_makefile ${rule}
 
 	return 0
 }
