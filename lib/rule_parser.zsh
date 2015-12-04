@@ -119,10 +119,11 @@ EOF
 	return 0
 }
 
-function parse_payload() {
+function parse_content_payload() {
 	local rule=${1}
 	local id=${2}
 	local name=$(sanitize_rule_filename ${rule})
+	local payload=$(jq -r ".payload[${id}].content" ${STAGEDIR}/${rule})
 	local res=0
 	local ispcre=0
 	local depth=0
@@ -130,26 +131,30 @@ function parse_payload() {
 	local flags=""
 	local flag=""
 	local fl=""
-
-	local payload=$(jq -r ".payload[${id}].content" ${STAGEDIR}/${rule})
-	if [ -z "${payload}" ]; then
-		# TODO: Implement PCRE and other payload types
-		return 0
-	fi
+	local hasbuf=0
 
 	flag=$(jq -r ".payload[${id}].http_uri" ${STAGEDIR}/${rule})
 	if [ "${flag}" = "http_uri" ]; then
 		flags="CONTENT_BUF_URI"
+		hasbuf=1
 		fl="|"
 	fi
 
 	flag=$(jq -r ".payload[${id}].fast_pattern" ${STAGEDIR}/${rule})
 	if [ "${flag}" = "only" ]; then
 		flags="${flags}${fl}CONTENT_FAST_PATTERN"
+		fl="|"
 	fi
 
-	if [ -z "${flags}" ]; then
-		flags="0"
+	if [ ${hasbuf} -eq 0 ]; then
+		flags="${flags}${fl}CONTENT_BUF_NORMALIZED"
+		hasbuf=1
+		fl="|"
+	fi
+
+	if [ ! $(jq -r ".payload[${id}].nocase | length" ${STAGEDIR}/${rule}) = "0" ]; then
+		flags="${flags}${fl}CONTENT_NOCASE"
+		fl="|"
 	fi
 
 	cat <<EOF >> $(rulepath ${name})/rule.c
@@ -176,6 +181,39 @@ EOF
 	return 0
 }
 
+function parse_pcre_payload() {
+	local rule=${1}
+	local id=${2}
+	local name=$(sanitize_rule_filename ${rule})
+	local pcrestr=$(jq -r ".payload[${id}].pcre" ${STAGEDIR}/${rule})
+	local pcreflags="PCRE_DOTALL|PCRE_MULTILINE"
+	local contentflags="CONTENT_BUF_NORMALIZED"
+
+	if [ ! $(jq -r ".payload[$((${id} - 1))].nocase | length" ${STAGEDIR}/${rule}) = "0" ]; then
+		pcreflags="${pcreflags}|PCRE_CASELESS"
+	fi
+
+	cat <<EOF >> $(rulepath ${name})/rule.c
+static PCREInfo sid_${name}_pcre${id} = {
+	${pcrestr},
+	NULL,
+	NULL,
+	${pcreflags},
+	${contentflags}
+};
+
+static RuleOption sid_${name}_pcre_option${id} = {
+	OPTION_TYPE_PCRE,
+	{ &sid_${name}_pcre${id} }
+};
+
+EOF
+
+	ruleoptions+="sid_${name}_pcre_option${id}"
+
+	return 0
+}
+
 function parse_payloads() {
 	local rule=${1}
 	local name=$(sanitize_rule_filename ${rule})
@@ -184,10 +222,20 @@ function parse_payloads() {
 	local res=0
 
 	for ((i=0; i < npayloads; i++)); do
-		parse_payload ${rule} ${i}
-		res=${?}
-		if [ ${res} -gt 0 ]; then
-			return ${res}
+		if [ ! $(jq -r ".payload[${i}].content | length" ${STAGEDIR}/${rule}) = "0" ]; then
+			parse_content_payload ${rule} ${i}
+			res=${?}
+			if [ ${res} -gt 0 ]; then
+				return ${res}
+			fi
+		fi
+
+		if [ ! $(jq -r ".payload[${i}].pcre | length" ${STAGEDIR}/${rule}) = "0" ]; then
+			parse_pcre_payload ${rule} ${i}
+			res=${?}
+			if [ ${res} -gt 0 ]; then
+				return ${res}
+			fi
 		fi
 	done
 
