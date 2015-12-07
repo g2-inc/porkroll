@@ -193,6 +193,10 @@ function parse_pcre_payload() {
 		pcreflags="${pcreflags}|PCRE_CASELESS"
 	fi
 
+	if [ ! $(jq -r ".payload[${id}].nocase | length" ${STAGEDIR}/${rule}) = "0" ]; then
+		pcreflags="${pcreflags}|PCRE_CASELESS"
+	fi
+
 	cat <<EOF >> $(rulepath ${name})/rule.c
 static PCREInfo sid_${name}_pcre${id} = {
 	${pcrestr},
