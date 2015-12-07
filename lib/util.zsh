@@ -32,10 +32,8 @@ function clean_work() {
 }
 
 function extract_source() {
-	(
-		cd ${TOPDIR}/work
-		tar -xf ${TOPDIR}/src/snort-${SNORTVER}.tar.gz
-	)
+	cd ${TOPDIR}/work
+	tar -xf ${TOPDIR}/src/snort-${SNORTVER}.tar.gz
 }
 
 function wrkdir() {
@@ -43,31 +41,25 @@ function wrkdir() {
 }
 
 function patch_source() {
-	(
-		patches=(001-configure.in)
+	patches=(001-configure.in)
 
-		cd $(wrkdir)
+	cd $(wrkdir)
 
-		for patch in ${patches}; do
-			patch -p0 < ${TOPDIR}/patches/${patch}
-		done
-	)
+	for patch in ${patches}; do
+		patch -p0 < ${TOPDIR}/patches/${patch}
+	done
 }
 
 function find_subdirs_entry() {
-	(
-		cd $(wrkdir)/src/dynamic-examples
+	cd $(wrkdir)/src/dynamic-examples
 
-		grep -n SUBDIRS Makefile.am | awk -F ':' '{print $1;}'
-	)
+	grep -n SUBDIRS Makefile.am | awk -F ':' '{print $1;}'
 }
 
 function find_ac_config_files_entry() {
-	(
-		cd $(wrkdir)
+	cd $(wrkdir)
 
-		grep -nF 'src/dynamic-examples/dynamic-rule/Makefile \' configure.in | awk -F ':' '{print $1;}'
-	)
+	grep -nF 'src/dynamic-examples/dynamic-rule/Makefile \' configure.in | awk -F ':' '{print $1;}'
 }
 
 function patch_dynamic_makefile() {
@@ -113,28 +105,22 @@ function create_rule_directories() {
 }
 
 function run_autotools() {
-	(
 	cd $(wrkdir)
-		autoreconf -fi
-	)
+	autoreconf -fi
 }
 
 function run_configure() {
-	(
 	cd $(wrkdir)
-		./configure --enable-build-dynamic-examples
-	)
+	./configure --enable-build-dynamic-examples
 }
 
 function run_build() {
-	(
-		local make="make"
+	local make="make"
 
-		if [ $(uname) = "FreeBSD" ]; then
-			make="gmake"
-		fi
+	if [ $(uname) = "FreeBSD" ]; then
+		make="gmake"
+	fi
 
-		cd $(wrkdir)
-		${make}
-	)
+	cd $(wrkdir)
+	${make}
 }
