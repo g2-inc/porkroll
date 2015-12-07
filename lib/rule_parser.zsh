@@ -126,8 +126,8 @@ function parse_content_payload() {
 	local payload=$(jq -r ".payload[${id}].content" ${STAGEDIR}/${rule})
 	local res=0
 	local ispcre=0
-	local depth=0
-	local offset=0
+	local depth=$(jq -r ".payload[${id}].depth" ${STAGEDIR}/${rule})
+	local offset=$(jq -r ".payload[${id}].offset" ${STAGEDIR}/${rule})
 	local flags=""
 	local flag=""
 	local fl=""
@@ -155,6 +155,14 @@ function parse_content_payload() {
 	if [ ! $(jq -r ".payload[${id}].nocase | length" ${STAGEDIR}/${rule}) = "0" ]; then
 		flags="${flags}${fl}CONTENT_NOCASE"
 		fl="|"
+	fi
+
+	if [ "${depth}" = "null" ]; then
+		depth=0
+	fi
+
+	if [ "${offset}" = "null" ]; then
+		offset=0
 	fi
 
 	cat <<EOF >> $(rulepath ${name})/rule.c
