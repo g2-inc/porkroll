@@ -88,8 +88,17 @@ function parse_flow() {
 
 	for flow in $(echo ${flows}); do
 		case ${flow} in
+			stateless)
+				return 0
+				;;
+			null)
+				return 0
+				;;
 			to_server)
 				flowvals="${flowvals}${flag}FLOW_TO_SERVER"
+				;;
+			to_client)
+				flowvals="${flowvals}${flag}FLOW_TO_CLIENT"
 				;;
 			established)
 				flowvals="${flowvals}${flag}FLOW_ESTABLISHED"
@@ -133,9 +142,18 @@ function parse_content_payload() {
 	local fl=""
 	local hasbuf=0
 
+	payload=$(echo ${payload} | sed 's,\\,\\\\,g')
+
+	if [ ${payload[0,1]} = "!" ]; then
+		flags="NOT_FLAG"
+		fl="|"
+
+		payload=${payload[2,${#payload}]}
+	fi
+
 	flag=$(jq -r ".payload[${id}].http_uri" ${STAGEDIR}/${rule})
 	if [ "${flag}" = "http_uri" ]; then
-		flags="CONTENT_BUF_URI"
+		flags="${flags}${fl}CONTENT_BUF_URI"
 		hasbuf=1
 		fl="|"
 	fi
@@ -196,6 +214,8 @@ function parse_pcre_payload() {
 	local pcrestr=$(jq -r ".payload[${id}].pcre" ${STAGEDIR}/${rule})
 	local pcreflags="PCRE_DOTALL|PCRE_MULTILINE"
 	local contentflags="CONTENT_BUF_NORMALIZED"
+
+	pcrestr=$(echo ${pcrestr} | sed 's,\\,\\\\,g')
 
 	if [ ! $(jq -r ".payload[$((${id} - 1))].nocase | length" ${STAGEDIR}/${rule}) = "0" ]; then
 		pcreflags="${pcreflags}|PCRE_CASELESS"
