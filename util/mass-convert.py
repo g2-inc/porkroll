@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2015,2016 G2, Inc
-# Author: Rob Weiss <rob.weiss@g2-inc.com>
+# Copyright (c) 2016 G2, Inc
+# Author: Shawn Webb <shawn.webb@g2-inc.com>
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
