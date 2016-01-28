@@ -187,7 +187,8 @@ class Parser(object):
         if type(lines) != list:
             raise Exception('Input is not an array of strings') 
         
-        rawRule = self.assemble(lines)  
+        rawRule = self.assemble(lines) 
+        ruleObject['rawRule'] = rawRule 
         print('[*] Raw Rule: %s'%(rawRule))   
            
         #the text up to the first ( is the rule header
@@ -327,7 +328,15 @@ class Parser(object):
                 o = option[:-1]
             else:
                 o = option
-            kv = o.split(':')
+            
+            #returns a list of 2 items. first item is the key and the second item is the option value.    
+            kv = o.split(':',1)
+            if len(kv) > 2:
+                print ("Error parsing option: %s"%(kv))
+            #res = re.split(r'.+:\s+"(.+)"',o)
+            #print ("Res : ", res)
+            #print (res.groups(0)[0])
+            #.+:\s+"(.+)"
             k = kv[0].strip()            
             if k in metadata.keys():
                 try:
