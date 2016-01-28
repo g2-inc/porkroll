@@ -211,11 +211,9 @@ function parse_pcre_payload() {
 	local rule=${1}
 	local id=${2}
 	local name=$(sanitize_rule_filename ${rule})
-	local pcrestr=$(jq -r ".payload[${id}].pcre" ${STAGEDIR}/${rule})
+	local pcrestr=$(jq -r ".payload[${id}].pcre" ${STAGEDIR}/${rule} | sed 's,\\,\\\\,g')
 	local pcreflags="PCRE_DOTALL|PCRE_MULTILINE"
 	local contentflags="CONTENT_BUF_NORMALIZED"
-
-	pcrestr=$(echo ${pcrestr} | sed 's,\\,\\\\,g')
 
 	if [ ! $(jq -r ".payload[$((${id} - 1))].nocase | length" ${STAGEDIR}/${rule}) = "0" ]; then
 		pcreflags="${pcreflags}|PCRE_CASELESS"
