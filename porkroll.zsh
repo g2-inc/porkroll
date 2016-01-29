@@ -44,6 +44,11 @@ function sanity_check() {
 		exit 1
 	fi
 
+	if [ -z "${GENSO_NAME}" ]; then
+		echo "[-] Please define GENSO_NAME" >&2
+		exit 1
+	fi
+
 	if [ ! -d ${STAGEDIR} ]; then
 		mkdir -p ${STAGEDIR}
 		if [ ! ${?} -eq 0 ]; then
@@ -84,6 +89,7 @@ function main() {
 		echo "[-] Could not parse rules. Bailing." >&2
 		exit 1
 	fi
+
 	run_autotools
 	res=${?}
 	if [ ! ${res} -eq 0 ]; then
@@ -104,6 +110,8 @@ function main() {
 	fi
 
 	publish_build
+	return ${?}
 }
 
 main ${0} $*
+exit ${?}

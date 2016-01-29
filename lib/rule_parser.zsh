@@ -29,16 +29,17 @@
 set -a ruleoptions
 set -a payloadnames
 set -a refs
+set -a parsedrules
 metadata=""
 
 function rulepath() {
-	local rule=${1}
-	echo "$(wrkdir)/src/dynamic-examples/${rule}"
+	echo "$(wrkdir)/src/dynamic-examples/${GENSO_NAME}"
 }
 
 function create_rule_file() {
 	local rule=${1}
-	cat<<EOF > $(rulepath ${rule})/rule.c
+	local name=$(sanitize_rule_filename ${rule})
+	cat<<EOF > $(rulepath)/${name}.c
 /*-
  * Copyright (c) 2015 G2, Inc
  * Author: Shawn Webb <shawn.webb@g2-inc.com>
@@ -71,8 +72,6 @@ function create_rule_file() {
 
 #include "sf_snort_plugin_api.h"
 #include "sf_snort_packet.h"
-
-int sid${rule}_run(void *);
 
 EOF
 }
@@ -111,7 +110,7 @@ function parse_flow() {
 		flag="|"
 	done
 
-	cat <<EOF >> $(rulepath ${name})/rule.c
+	cat <<EOF >> $(rulepath)/${name}.c
 static FlowFlags sid_${name}_flow = {
 	${flowvals}
 };
@@ -183,7 +182,7 @@ function parse_content_payload() {
 		offset=0
 	fi
 
-	cat <<EOF >> $(rulepath ${name})/rule.c
+	cat <<EOF >> $(rulepath)/${name}.c
 static ContentInfo sid_${name}_content${id} = {
 	(u_int8_t *)${payload},
 	${depth},
@@ -223,7 +222,7 @@ function parse_pcre_payload() {
 		pcreflags="${pcreflags}|PCRE_CASELESS"
 	fi
 
-	cat <<EOF >> $(rulepath ${name})/rule.c
+	cat <<EOF >> $(rulepath)/${name}.c
 static PCREInfo sid_${name}_pcre${id} = {
 	${pcrestr},
 	NULL,
@@ -279,7 +278,7 @@ function parse_ref() {
 	local refstr=$(jq -r ".general.reference[${id}]" ${STAGEDIR}/${rule})
 	local i=0
 
-	cat <<EOF >> $(rulepath ${name})/rule.c
+	cat <<EOF >> $(rulepath)/${name}.c
 static RuleReference sid_${name}_ref${id} = {
 	"${refstr%%,*}",
 	"${refstr##*,}"
@@ -305,15 +304,15 @@ function parse_refs() {
 		fi
 	done
 
-	cat <<EOF >> $(rulepath ${name})/rule.c
+	cat <<EOF >> $(rulepath)/${name}.c
 static RuleReference *sid_${name}_refs[] = {
 EOF
 
 	for ((i=0; i < nrefs; i++)); do
-		echo "\t&sid_${name}_ref${i}," >> $(rulepath ${name})/rule.c
+		echo "\t&sid_${name}_ref${i}," >> $(rulepath)/${name}.c
 	done
 
-	echo "\tNULL\n};\n" >> $(rulepath ${name})/rule.c
+	echo "\tNULL\n};\n" >> $(rulepath)/${name}.c
 
 	return 0
 }
@@ -332,7 +331,7 @@ function parse_metadata() {
 	old_IFS=${IFS}
 	IFS=","
 	for data in $(echo ${metadatastr}); do
-		cat <<EOF >> $(rulepath ${name})/rule.c
+		cat <<EOF >> $(rulepath)/${name}.c
 static RuleMetaData sid_${name}_metadata${ndata} = {
 	"$(echo ${data} | sed -E 's/^ {1,}//' | sed -E 's/ ${1,}$//')"
 };
@@ -342,13 +341,13 @@ EOF
 	done
 	IFS=${old_IFS}
 
-	echo "static RuleMetaData *sid_${name}_metadata[] = {" >> $(rulepath ${name})/rule.c
+	echo "static RuleMetaData *sid_${name}_metadata[] = {" >> $(rulepath)/${name}.c
 
 	for ((i=0; i < ndata; i++)); do
-		echo "\t&sid_${name}_metadata${i}," >> $(rulepath ${name})/rule.c
+		echo "\t&sid_${name}_metadata${i}," >> $(rulepath)/${name}.c
 	done
 
-	echo "\tNULL,\n};\n" >> $(rulepath ${name})/rule.c
+	echo "\tNULL,\n};\n" >> $(rulepath)/${name}.c
 
 	metadata="sid_${name}_metadata"
 
@@ -378,14 +377,14 @@ function write_rule_options() {
 	local name=$(sanitize_rule_filename ${rule})
 	local o=""
 
-	cat <<EOF >> $(rulepath ${name})/rule.c
+	cat <<EOF >> $(rulepath)/${name}.c
 RuleOption *sid_${name}_options[] = {
 EOF
 	for o in ${ruleoptions}; do
-		echo "\t&${o}," >> $(rulepath ${name})/rule.c
+		echo "\t&${o}," >> $(rulepath)/${name}.c
 	done
 
-	echo "\tNULL\n};\n" >> $(rulepath ${name})/rule.c
+	echo "\tNULL\n};\n" >> $(rulepath)/${name}.c
 }
 
 function write_rule() {
@@ -421,7 +420,7 @@ function write_rule() {
 		direction="1"
 	fi
 
-	cat <<EOF >> $(rulepath ${name})/rule.c
+	cat <<EOF >> $(rulepath)/${name}.c
 Rule sid_${name}_rule = {
 	{
 		${proto},
@@ -446,42 +445,53 @@ Rule sid_${name}_rule = {
 	0
 };
 
-Rule *rules[] = {
-	&sid_${name}_rule,
-	NULL
-};
-
 EOF
 	return 0
 }
 
 function write_makefile() {
-	local rule=${1}
-	local name=$(sanitize_rule_filename ${rule})
+	local rule
+	local name
 
-	cat <<EOF >> $(rulepath ${name})/Makefile.am
+	cat <<EOF >> $(rulepath)/Makefile.am
 AUTOMAKE_OPTIONS=foreign no-dependencies
 
 INCLUDES = -I../include
 
 noinst_libdir = \${exec_prefix}/lib/snort_dynamicrules
 
-noinst_lib_LTLIBRARIES = lib_${name}.la
+noinst_lib_LTLIBRARIES = lib_${GENSO_NAME}.la
 
-lib_${name}_la_LDFLAGS = -export-dynamic @XCCFLAGS@
+lib_${GENSO_NAME}_la_LDFLAGS = -export-dynamic @XCCFLAGS@
 
 BUILT_SOURCES = \\
 	sfsnort_dynamic_detection_lib.c \\
 	sfsnort_dynamic_detection_lib.h
 
-nodist_lib_${name}_la_SOURCES = \\
+nodist_lib_${GENSO_NAME}_la_SOURCES = \\
 	detection_lib_meta.h \\
+EOF
+
+	for rule in ${parsedrules}; do
+		name=$(sanitize_rule_filename ${rule})
+		echo "\t${name}.c \\\\" >> $(rulepath)/Makefile.am
+	done
+
+cat <<EOF >> $(rulepath)/Makefile.am
 	rule.c \\
 	sfsnort_dynamic_detection_lib.c \\
 	sfsnort_dynamic_detection_lib.h
 
 EXTRA_DIST = \\
 	detection_lib_meta.h \\
+EOF
+
+	for rule in ${parsedrules}; do
+		name=$(sanitize_rule_filename ${rule})
+		echo "\t${name}.c \\\\" >> $(rulepath)/Makefile.am
+	done
+
+cat <<EOF >> $(rulepath)/Makefile.am
 	rule.c
 
 sfsnort_dynamic_detection_lib.c: ../include/sfsnort_dynamic_detection_lib.c
@@ -494,7 +504,7 @@ clean-local:
 	rm -rf \$(BUILT_SOURCES)
 EOF
 
-	cat <<EOF >> $(rulepath ${name})/detection_lib_meta.h
+	cat <<EOF >> $(rulepath)/detection_lib_meta.h
 #ifndef _DETECTION_LIB_META_H_
 #define _DETECTION_LIB_META_H_
 
@@ -502,10 +512,93 @@ EOF
 #define DETECTION_LIB_MAJOR 1
 #define DETECTION_LIB_MINOR 0
 #define DETECTION_LIB_BUILD 0
-#define DETECTION_LIB_NAME "${name}"
+#define DETECTION_LIB_NAME "${GENSO_NAME}"
 
 #endif /* _DETECTION_LIB_META_H_ */
 EOF
+	cat<<EOF > $(rulepath)/rule.c
+/*-
+ * Copyright (c) 2015 G2, Inc
+ * Author: Shawn Webb <shawn.webb@g2-inc.com>
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 
+ * 1. Redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer.
+ * 
+ * 2. Redistributions in binary form must reproduce the above
+ * copyright notice, this list of conditions and the following
+ * disclaimer in the documentation and/or other materials provided
+ * with the distribution.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#include "sf_snort_plugin_api.h"
+#include "sf_snort_packet.h"
+#include "genrule.h"
+
+Rule *rules[] = {
+
+EOF
+
+	cat <<EOF > $(rulepath)/genrule.h
+/*-
+ * Copyright (c) 2015 G2, Inc
+ * Author: Shawn Webb <shawn.webb@g2-inc.com>
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 
+ * 1. Redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer.
+ * 
+ * 2. Redistributions in binary form must reproduce the above
+ * copyright notice, this list of conditions and the following
+ * disclaimer in the documentation and/or other materials provided
+ * with the distribution.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#ifndef _GENRULE_H
+#define _GENRULE_H
+ 
+EOF
+
+	for rule in ${parsedrules}; do
+		name=$(sanitize_rule_filename ${rule})
+		echo "\t&sid_${name}_rule," >> $(rulepath)/rule.c
+		echo "extern Rule sid_${name}_rule;" >> $(rulepath)/genrule.h
+	done
+
+	echo "\tNULL\n};" >> $(rulepath)/rule.c
+	echo "#endif" >> $(rulepath)/genrule.h
 
 	return 0
 }
@@ -514,7 +607,7 @@ function parse_rule() {
 	local rule=${1}
 	local name=$(sanitize_rule_filename ${rule})
 
-	create_rule_file ${name}
+	create_rule_file ${rule}
 
 	parse_flows ${rule}
 	parse_payloads ${rule}
@@ -522,13 +615,16 @@ function parse_rule() {
 	parse_metadata ${rule}
 	write_rule_options ${rule}
 	write_rule ${rule}
-	write_makefile ${rule}
+
+	parsedrules+=${rule}
 
 	return 0
 }
 
 function parse_rules() {
 	local rule=""
+
+	parsedrules=()
 
 	for rule in $(get_raw_rule_names); do
 		ruleoptions=()
@@ -541,6 +637,8 @@ function parse_rules() {
 			return ${res}
 		fi
 	done
+
+	write_makefile
 
 	return 0
 }

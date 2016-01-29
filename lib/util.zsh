@@ -31,7 +31,7 @@ function clean_environment() {
 	rm -rf snort-${SNORTVER}
 
 	for entry in $(ls ${PRODDIR}); do
-		rm -rf ${entry}
+		rm -rf ${PRODDIR}/${entry}
 	done
 }
 
@@ -67,23 +67,21 @@ function find_ac_config_files_entry() {
 }
 
 function patch_dynamic_makefile() {
-	dir=${1}
-	lineno=$(find_subdirs_entry)
+	local lineno=$(find_subdirs_entry)
+	local tmpfile=$(mktemp)
 
-	tmpfile=$(mktemp)
-
-	sed "${lineno}s/\$/ ${dir}/" $(wrkdir)/src/dynamic-examples/Makefile.am > ${tmpfile}
+	sed "${lineno}s/\$/ ${GENSO_NAME}/" $(wrkdir)/src/dynamic-examples/Makefile.am > ${tmpfile}
 	mv ${tmpfile} $(wrkdir)/src/dynamic-examples/Makefile.am
 
 	lineno=$(find_ac_config_files_entry)
 	sed "${lineno} a\\
-src/dynamic-examples/${dir}/Makefile \\\\
+src/dynamic-examples/${GENSO_NAME}/Makefile \\\\
 " $(wrkdir)/configure.in > ${tmpfile}
 	mv ${tmpfile} $(wrkdir)/configure.in
 }
 
 function sanitize_rule_filename() {
-	file=${1}
+	local file=${1}
 
 	file=${file##*/}
 	echo "sid${file%%.*}" | sed 's,-,r,g'
@@ -102,10 +100,8 @@ function get_sanitized_rule_names() {
 }
 
 function create_rule_directories() {
-	for file in $(get_sanitized_rule_names); do
-		mkdir $(wrkdir)/src/dynamic-examples/${file}
-		patch_dynamic_makefile ${file}
-	done
+	mkdir $(wrkdir)/src/dynamic-examples/${GENSO_NAME}
+	patch_dynamic_makefile
 }
 
 function run_autotools() {
@@ -130,13 +126,7 @@ function run_build() {
 }
 
 function publish_build() {
-	for so in $(find $(wrkdir)/src/dynamic-examples -name \*.so.0.0.0 | grep 'sid[0-9]*r[0-9]*'); do
-		cp ${so} ${PRODDIR}
-		res=${?}
-		if [ ${res} -gt 0 ]; then
-			return 1
-		fi
-	done
+	cp $(wrkdir)/src/dynamic-examples/${GENSO_NAME}/.libs/lib_${GENSO_NAME}.so.0.0.0 ${PRODDIR}
 
-	return 0
+	return ${?}
 }
