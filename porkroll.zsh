@@ -39,10 +39,23 @@ function sanity_check() {
 		exit 1
 	fi
 
+	if [ -z "${PRODDIR}" ]; then
+		echo "[-] Please define PRODDIR." >&2
+		exit 1
+	fi
+
 	if [ ! -d ${STAGEDIR} ]; then
 		mkdir -p ${STAGEDIR}
 		if [ ! ${?} -eq 0 ]; then
 			echo "[-] ${STAGEDIR} does not exist. Please create." >&2
+			exit 1
+		fi
+	fi
+
+	if [ ! -d ${PRODDIR} ]; then
+		mkdir -p ${PRODDIR}
+		if [ ! ${?} -eq 0 ]; then
+			echo "[-] ${PRODDIR} does not exist. Please create." >&2
 			exit 1
 		fi
 	fi
@@ -59,7 +72,7 @@ function main() {
 	source ${TOPDIR}/lib/rule_parser.zsh
 
 	sanity_check
-	clean_work
+	clean_environment
 	extract_source
 	if [ -z "$(which pkg-config)" ]; then
 		patch_source
@@ -84,6 +97,13 @@ function main() {
 		exit 1
 	fi
 	run_build
+	res=${?}
+	if [ ! ${res} -eq 0 ]; then
+		echo "[-] Build failed" >&2
+		exit 1
+	fi
+
+	publish_build
 }
 
 main ${0} $*

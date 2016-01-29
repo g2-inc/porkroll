@@ -26,9 +26,13 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-function clean_work() {
+function clean_environment() {
 	cd ${TOPDIR}/work
 	rm -rf snort-${SNORTVER}
+
+	for entry in $(ls ${PRODDIR}); do
+		rm -rf ${entry}
+	done
 }
 
 function extract_source() {
@@ -123,4 +127,16 @@ function run_build() {
 
 	cd $(wrkdir)
 	${make}
+}
+
+function publish_build() {
+	for so in $(find $(wrkdir)/src/dynamic-examples -name \*.so.0.0.0 | grep 'sid[0-9]*r[0-9]*'); do
+		cp ${so} ${PRODDIR}
+		res=${?}
+		if [ ${res} -gt 0 ]; then
+			return 1
+		fi
+	done
+
+	return 0
 }
