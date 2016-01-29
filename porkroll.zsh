@@ -72,7 +72,36 @@ function main() {
 	TOPDIR=$(get_topdir ${1})
 	cd ${TOPDIR}
 
-	source ${TOPDIR}/configs/main.conf
+	shift
+
+	if [ -f ${TOPDIR}/configs/main.conf ]; then
+		source ${TOPDIR}/configs/main.conf
+	fi
+
+	while getopts 'vg:p:s:V:' opt; do
+		case "${opt}" in
+			v)
+				echo "Version 0.1"
+				;;
+			g)
+				GENSO_NAME="${OPTARG}"
+				;;
+			p)
+				PRODDIR="${OPTARG}"
+				;;
+			s)
+				STAGEDIR="${OPTARG}"
+				;;
+			V)
+				SNORTVER="2.9.7.6"
+				;;
+			*)
+				echo "I need to stop being lazy and write help text here"
+				exit 1
+				;;
+		esac
+	done
+
 	source ${TOPDIR}/lib/util.zsh
 	source ${TOPDIR}/lib/rule_parser.zsh
 
