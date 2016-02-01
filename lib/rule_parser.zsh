@@ -96,11 +96,17 @@ function parse_flow() {
 			to_server)
 				flowvals="${flowvals}${flag}FLOW_TO_SERVER"
 				;;
+			from_server)
+				flowvals="${flowvals}${flag}FLOW_TO_CLIENT"
+				;;
 			to_client)
 				flowvals="${flowvals}${flag}FLOW_TO_CLIENT"
 				;;
 			established)
 				flowvals="${flowvals}${flag}FLOW_ESTABLISHED"
+				;;
+			no_stream)
+				flowvals="${flowvals}${flag}FLOW_IGNORE_REASSEMBLED"
 				;;
 			*)
 				echo "[-] Unknown flow: ${flow}" >&2
@@ -131,16 +137,20 @@ function parse_content_payload() {
 	local rule=${1}
 	local id=${2}
 	local name=$(sanitize_rule_filename ${rule})
-	local payload=$(jq -r ".payload[${id}].content" ${STAGEDIR}/${rule})
+	local payload
 	local res=0
 	local ispcre=0
-	local depth=$(jq -r ".payload[${id}].depth" ${STAGEDIR}/${rule})
-	local offset=$(jq -r ".payload[${id}].offset" ${STAGEDIR}/${rule})
+	local depth
+	local offset
 	local flags=""
 	local flag=""
 	local fl=""
 	local hasbuf=0
 
+	depth=$(jq -r ".payload[${id}].depth" ${STAGEDIR}/${rule})
+	offset=$(jq -r ".payload[${id}].offset" ${STAGEDIR}/${rule})
+
+	payload=$(jq -r ".payload[${id}].content" ${STAGEDIR}/${rule})
 	payload=$(echo ${payload} | sed 's,\\,\\\\,g')
 
 	if [ ${payload[0,1]} = "!" ]; then
@@ -210,9 +220,11 @@ function parse_pcre_payload() {
 	local rule=${1}
 	local id=${2}
 	local name=$(sanitize_rule_filename ${rule})
-	local pcrestr=$(jq -r ".payload[${id}].pcre" ${STAGEDIR}/${rule} | sed 's,\\,\\\\,g')
+	local pcrestr
 	local pcreflags="PCRE_DOTALL|PCRE_MULTILINE"
 	local contentflags="CONTENT_BUF_NORMALIZED"
+
+	pcrestr="$(jq -r ".payload[${id}].pcre" ${STAGEDIR}/${rule} | sed 's,\\,\\\\,g')"
 
 	if [ ! $(jq -r ".payload[$((${id} - 1))].nocase | length" ${STAGEDIR}/${rule}) = "0" ]; then
 		pcreflags="${pcreflags}|PCRE_CASELESS"
@@ -246,9 +258,11 @@ EOF
 function parse_payloads() {
 	local rule=${1}
 	local name=$(sanitize_rule_filename ${rule})
-	local npayloads=$(jq -r '.payload | length' ${STAGEDIR}/${rule})
+	local npayloads
 	local i=0
 	local res=0
+
+	npayloads=$(jq -r '.payload | length' ${STAGEDIR}/${rule})
 
 	for ((i=0; i < npayloads; i++)); do
 		if [ ! $(jq -r ".payload[${i}].content | length" ${STAGEDIR}/${rule}) = "0" ]; then
@@ -275,8 +289,10 @@ function parse_ref() {
 	local rule=${1}
 	local id=${2}
 	local name=$(sanitize_rule_filename ${rule})
-	local refstr=$(jq -r ".general.reference[${id}]" ${STAGEDIR}/${rule})
+	local refstr
 	local i=0
+
+	refstr="$(jq -r ".general.reference[${id}]" ${STAGEDIR}/${rule})"
 
 	cat <<EOF >> $(rulepath)/${name}.c
 static RuleReference sid_${name}_ref${id} = {
@@ -292,9 +308,11 @@ EOF
 function parse_refs() {
 	local rule=${1}
 	local name=$(sanitize_rule_filename ${rule})
-	local nrefs=$(jq -r '.general.reference | length' ${STAGEDIR}/${rule})
+	local nrefs
 	local i=0
 	local res=0
+
+	nrefs=$(jq -r '.general.reference | length' ${STAGEDIR}/${rule})
 
 	for ((i=0; i < nrefs; i++)); do
 		parse_ref ${rule} ${i}
@@ -320,10 +338,11 @@ EOF
 function parse_metadata() {
 	local rule=${1}
 	local name=$(sanitize_rule_filename ${rule})
-	local metadatastr=$(jq -r '.general.metadata' ${STAGEDIR}/${rule})
+	local metadatastr
 	local ndata=0
 	local i=0
 
+	metadatastr=$(jq -r '.general.metadata' ${STAGEDIR}/${rule})
 	if [ "$(jq -r '.general.metadata | length' ${STAGEDIR}/${rule})" = "0" ]; then
 		return 0
 	fi
@@ -359,7 +378,8 @@ function parse_flows() {
 	local name=$(sanitize_rule_filename ${rule})
 	local res=0
 
-	local flow=$(jq -r '.nonpayload.flow' ${STAGEDIR}/${rule})
+	local flow
+	flow=$(jq -r '.nonpayload.flow' ${STAGEDIR}/${rule})
 	if [ ${#flow} -gt 0 ]; then
 		parse_flow ${name} ${flow}
 		res=${?}
@@ -390,16 +410,27 @@ EOF
 function write_rule() {
 	local rule=${1}
 	local name=$(sanitize_rule_filename ${rule})
-	local direction=$(jq -r '.header.direction' ${STAGEDIR}/${rule})
-	local proto=$(jq -r '.header.protocol' ${STAGEDIR}/${rule})
-	local srcaddr=$(jq -r '.header.srcaddresses' ${STAGEDIR}/${rule})
-	local srcports=$(jq -r '.header.srcports' ${STAGEDIR}/${rule})
-	local dstaddr=$(jq -r '.header.dstaddresses' ${STAGEDIR}/${rule})
-	local dstports=$(jq -r '.header.dstports' ${STAGEDIR}/${rule})
-	local sid=$(jq -r '.general.sid' ${STAGEDIR}/${rule})
-	local rev=$(jq -r '.general.rev' ${STAGEDIR}/${rule})
-	local classtype=$(jq -r '.general.classtype' ${STAGEDIR}/${rule})
-	local msg=$(jq -r '.general.msg' ${STAGEDIR}/${rule})
+	local direction
+	local proto
+	local srcaddr
+	local srcports
+	local dstaddr
+	local dstports
+	local sid
+	local rev
+	local classtype
+	local msg
+
+	direction=$(jq -r '.header.direction' ${STAGEDIR}/${rule})
+	proto=$(jq -r '.header.protocol' ${STAGEDIR}/${rule})
+	srcaddr=$(jq -r '.header.srcaddresses' ${STAGEDIR}/${rule})
+	srcports=$(jq -r '.header.srcports' ${STAGEDIR}/${rule})
+	dstaddr=$(jq -r '.header.dstaddresses' ${STAGEDIR}/${rule})
+	dstports=$(jq -r '.header.dstports' ${STAGEDIR}/${rule})
+	sid=$(jq -r '.general.sid' ${STAGEDIR}/${rule})
+	rev=$(jq -r '.general.rev' ${STAGEDIR}/${rule})
+	classtype=$(jq -r '.general.classtype' ${STAGEDIR}/${rule})
+	msg="$(jq -r '.general.msg' ${STAGEDIR}/${rule})"
 
 	case ${proto} in
 		tcp)
@@ -407,6 +438,12 @@ function write_rule() {
 			;;
 		udp)
 			proto="IPPROTO_UDP"
+			;;
+		ip)
+			proto="IPPROTO_IP"
+			;;
+		icmp)
+			proto="IPPROTO_ICMP"
 			;;
 		*)
 			echo "[-] Rule ${name}: Unknown protocol: ${proto}" >&2
