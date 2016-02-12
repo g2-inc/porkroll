@@ -64,6 +64,11 @@ function sanity_check() {
 			exit 1
 		fi
 	fi
+
+	if [ ! -f src/snort-${SNORTVER}.tar.gz ]; then
+		echo "[-] src/snort-${SNORTVER}.tar.gz must exist." >&2
+		exit 1
+	fi
 }
 
 function main() {
