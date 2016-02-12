@@ -93,7 +93,7 @@ function main() {
 				STAGEDIR="${OPTARG}"
 				;;
 			V)
-				SNORTVER="2.9.7.6"
+				SNORTVER="${OPTARG}"
 				;;
 			*)
 				echo "I need to stop being lazy and write help text here"
